@@ -1,39 +1,41 @@
 const CONTEXT_PATH = window.CONTEXT_PATH || "";
-const userList = document.getElementById("userList");
+const CSRF_TOKEN = window.CSRF_TOKEN || "";
 const form = document.getElementById("userForm");
+const formMessage = document.getElementById("formMessage");
 
-async function loadUsers() {
-  const res = await fetch(`${CONTEXT_PATH}/api/users`);
-  const users = await res.json();
-  userList.innerHTML = "";
-  users.forEach((u) => {
-    const li = document.createElement("li");
-    li.textContent = `${u.name} (${u.email}) `;
-    userList.appendChild(li);
-  });
+function showMessage(kind, text) {
+  if (!formMessage) return;
+  formMessage.className = `alert alert-${kind}`;
+  formMessage.textContent = text;
 }
 
-form.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const name = document.getElementById("name").value;
-  const email = document.getElementById("email").value;
-  const password = document.getElementById("password").value;
-  await fetch(`${CONTEXT_PATH}/api/users`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ name, email, password }),
+if (form) {
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = document.getElementById("name").value;
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+    showMessage("secondary", "Creating user...");
+    try {
+      const res = await fetch(`${CONTEXT_PATH}/api/users`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-TOKEN": CSRF_TOKEN,
+        },
+        body: JSON.stringify({ name, email, password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        showMessage("success", `User "${data.name}" created (ID ${data.id}).`);
+        form.reset();
+      } else {
+        const fields = data.fields;
+        const msg = fields ? Object.values(fields).join("; ") : data.error || "Failed to create user";
+        showMessage("danger", msg);
+      }
+    } catch (err) {
+      showMessage("danger", "Network error: " + err.message);
+    }
   });
-  loadUsers();
-  form.reset();
-});
-
-async function deleteUser(id) {
-  await fetch(`${CONTEXT_PATH}/api/users/${id}`, {
-    method: "DELETE",
-  });
-  loadUsers();
 }
-
-loadUsers();
